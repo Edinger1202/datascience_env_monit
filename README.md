@@ -6,7 +6,7 @@ Lab website: <https://uni-freiburg.de/enr-geosense>
 In this course you follow a set of five flux towers through the whole life of environmental data: you download their measurements, add satellite, climate and site data, clean and analyse the time series, model the fluxes, put everything into a shared database, and present what you found on a poster. Along the way you learn the tools of reproducible data science: Git and GitHub, R or Python, Quarto reports and the bwUniCluster.
 
 **Fridays, 8:30–12:00.** Each block has about two hours of teaching and about two hours of assignment work.
-**Teaching team:** Negin Katal, Teja Kattenborn, Markus Weiler (Blocks 6–7), Joachim (Blocks 11–12).
+**Teaching team:** Negin Katal, Teja Kattenborn, Markus Weiler (Blocks 6–7), Joachim Maack (Blocks 11–12).
 
 ## Contents
 
@@ -43,20 +43,20 @@ You never push to this repository. You work in your fork, so your changes never 
 
 | Block | Date | Topic | Lead | Material |
 | --- | --- | --- | --- | --- |
-| 1 | 23 Oct 2026 | Introduction, R and VS Code: the course, your tower sets, a working setup and a first reproducible figure | Negin | ILIAS |
-| 2 | 30 Oct 2026 | Git/GitHub and remote computing: your project becomes a Git repository; run code on bwUniCluster over SSH | Negin | [Assignment](assignments/block-2-git-github-cluster.md), [SSH guide](https://negin-katal.github.io/datascience_env_monit/ssh-connection/) |
-| 3 | 6 Nov 2026 | Excursion to Hartheim / ECOSENSE: flux towers and sensors in the field | Teja | ILIAS (meeting point) |
-| 4 | 13 Nov 2026 | Data acquisition I: download your towers' flux data, read documentation and quality flags, import cleanly | Negin | [Assignment](assignments/block-4-flux-data-summary.md), `scripts/get_my_towers` |
-| 5 | 20 Nov 2026 | Data acquisition II: add climate, soil, plant, extreme-event, biodiversity and satellite data and merge them | Negin | [Assignment](assignments/block-5-complementary-data.md), [`scripts/block5/`](scripts/block5/) |
+| 1 | 23 Oct 2026 | Introduction, R and VS Code: the course, your tower sets, a working setup and a first reproducible figure | Negin Katal | ILIAS |
+| 2 | 30 Oct 2026 | Git/GitHub and remote computing: your project becomes a Git repository; run code on bwUniCluster over SSH | Negin Katal| [Assignment](assignments/block-2-git-github-cluster.md), [SSH guide](https://negin-katal.github.io/datascience_env_monit/ssh-connection/) |
+| 3 | 6 Nov 2026 | Excursion to ECOSENSE: flux towers and sensors in the field | Negin Katal | ILIAS (meeting point) |
+| 4 | 13 Nov 2026 | Data acquisition I: download your towers' flux data, read documentation and quality flags, import cleanly | Negin Katal| [Assignment](assignments/block-4-flux-data-summary.md), `scripts/get_my_towers` |
+| 5 | 20 Nov 2026 | Data acquisition II: add climate, soil, plant, extreme-event, biodiversity and satellite data and merge them | Negin Katal| [Assignment](assignments/block-5-complementary-data.md), [`scripts/block5/`](scripts/block5/) |
 | 6 | 27 Nov 2026 | Extreme values and time-series analysis: droughts, heat waves, decomposing time series | Markus Weiler | follows |
 | 7 | 4 Dec 2026 | Outliers and data quality: detect outliers, check plausibility, document every cleaning step | Markus Weiler | follows |
-| 8 | 11 Dec 2026 | Modelling I: empirical models and prediction of flux time series | Negin and Teja | follows |
-| 9 | 18 Dec 2026 | Modelling II: validation, uncertainty and transfer to other towers | Negin and Teja | follows |
+| 8 | 11 Dec 2026 | Modelling I: empirical models and prediction of flux time series | Teja Kattenborn and Negin Katal| follows |
+| 9 | 18 Dec 2026 | Modelling II: validation, uncertainty and transfer to other towers | Teja Kattenborn and Negin Katal | follows |
 | – | 25 Dec 2026, 1 Jan 2027 | Winter break | | |
-| 10 | 8 Jan 2027 | Modelling III: interpretation and links to ecosystem functional properties | Negin and Teja | follows |
+| 10 | 8 Jan 2027 | Modelling III: interpretation and links to ecosystem functional properties | Teja Kattenborn and Negin Katal | follows |
 | – | 15 Jan 2027 | Independent work on your tower set (no lecture, support as agreed) | | |
-| 11 | 22 Jan 2027 | Databases I: structure, validation and ingestion of the course data | Joachim | follows |
-| 12 | 29 Jan 2027 | Databases II: queries and integrated analysis of all towers | Joachim | follows |
+| 11 | 22 Jan 2027 | Databases I: structure, validation and ingestion of the course data | Joachim  Maack| follows |
+| 12 | 29 Jan 2027 | Databases II: queries and integrated analysis of all towers | Joachim Maack| follows |
 | 13 | 5 Feb 2027 | Independent project completion: finish your report and poster (no lecture, support as agreed) | | |
 | 14 | 12 Feb 2027 | Poster presentations and discussion across towers | Teaching team | |
 
@@ -79,7 +79,7 @@ Each sheet has a time plan, *Check:* boxes after every step, a hand-in checklist
 
 New sheets are added here as the course goes on.
 
-**Assessment.** The examination (Prüfungsleistung) is **one written report** and a **poster presentation** in Block 14. Both build on the work you do on your towers during the semester, so the weekly assignments are your building blocks: keep them tidy and reproducible.
+**Assessment.** The examination (Prüfungsleistung) is **one written report** in the middle of semester (after block 7) and a **poster presentation** in Block 14. Both build on the work you do on your towers during the semester, so the weekly assignments are your building blocks: keep them tidy and reproducible.
 
 ## What is in this repository
 
