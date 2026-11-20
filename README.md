@@ -1,5 +1,6 @@
-# Environmental Monitoring and Data Analysis
+# Readme Env. Monitoring Course
 
+<<<<<<< HEAD
 Course material for the Master's course *Environmental Monitoring and Data Analysis* (1st semester, environmental science), Chair of Sensor-based Geoinformatics, University of Freiburg. Winter semester 2026/27.
 Lab website: <https://uni-freiburg.de/enr-geosense>
 
@@ -80,9 +81,35 @@ Each sheet has a time plan, *Check:* boxes after every step, a hand-in checklist
 New sheets are added here as the course goes on.
 
 **Assessment.** The examination (Prüfungsleistung) is **one written report** in the middle of semester (after block 7) and a **poster presentation** in Block 14. Both build on the work you do on your towers during the semester, so the weekly assignments are your building blocks: keep them tidy and reproducible.
+=======
+This is the repository for the module "Environmental Monitoring".
+It will continue to grow throughout the course. 
 
-## What is in this repository
 
+This is part of the assignment of week 2
+
+## Author
+Timo Sanzol Rieth
+
+## Run
+No scripts yet
+>>>>>>> 85ab322 (Add README with run instructions)
+
+## Files
+Licence
+README.md
+Assignment/	block-2-git-github_cluster.md
+scripts/  	the analysis code
+jobs/     	Slurm job scripts (hello_py.sh, hello_R.sh)
+docs/     	STORAGE_TEMPLATE.md
+Flux4student / 	data
+		index.html
+		bulid_info.json
+		README.md
+		sites.json
+		world.json
+
+<<<<<<< HEAD
 ```
 datascience_env_monit/
 ├── README.md              this file
@@ -184,3 +211,5 @@ R and Python packages are listed at the top of each script and in [`scripts/bloc
 Course material: see [LICENSE](LICENSE).
 
 The FLUXNET data in `flux4student/` are CC-BY-4.0 with citation requirements per site; see [`flux4student/README.md`](flux4student/README.md). When you use flux data, cite each site's data product, Pastorello et al. (2020), *Scientific Data* 7, 225, <https://doi.org/10.1038/s41597-020-0534-3>, and include the FLUXNET acknowledgement given there. The Block 5 datasets each have their own citation, listed in the header of every script.
+=======
+>>>>>>> 85ab322 (Add README with run instructions)
