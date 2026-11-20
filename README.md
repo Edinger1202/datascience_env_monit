@@ -171,6 +171,7 @@ R and Python packages are listed at the top of each script and in [`scripts/bloc
 
 - **flux4student explorer:** map, data availability and weekly time series of all course towers: <https://negin-katal.github.io/datascience_env_monit/flux4student/>
 - **SSH connection guide for bwUniCluster:** <https://negin-katal.github.io/datascience_env_monit/ssh-connection/>
+- **Climate data viewer** <https://negin-katal.github.io/datascience_env_monit/climate-data-viewer/>
 
 ## Help
 
