@@ -1,0 +1,362 @@
+---
+title: "Is there a soil moisture threshold for GPP at my five FLUXNET towers?"
+subtitle: "Environmental Monitoring and Data Analysis – Block 5"
+author: "Timo Sanzol Rieth"
+date: today
+date-format: "DD.MM.YYYY"
+lang: en
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    toc-depth: 3
+    number-sections: true
+    code-fold: show
+    code-tools: true
+    code-summary: "Show code"
+    df-print: paged
+    fig-width: 8
+    fig-height: 5
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Question and hypothesis
+
+**Question:** At each of my five towers, is there a soil moisture threshold in the root zone (ERA5-Land `swvl2`, 7–28 cm) below which daily GPP decreases markedly?
+
+**Hypothesis:** As long as the soil is moist enough, GPP should be largely independent of `swvl2`. Below a certain threshold, however, GPP should drop with declining soil moisture: plants close their stomata to reduce water loss, and this also limits their CO₂ uptake.
+
+I expect the threshold to be clearest at the driest towers, where soil moisture regularly falls to low values during the growing season.
+
+**Are my towers a good test?** Partly. They cover a wide climatic gradient, from a semi-arid grassland in Inner Mongolia (CN-Xi2, 329 mm yr⁻¹) to a humid cropland in Missouri (US-Mo3, 1017 mm yr⁻¹), so I can compare sites where water is likely limiting with sites where it is not. On the other hand, the five towers are also very different ecosystems (grassland, two forests, a wetland and a cropland), so differences between them cannot be attributed to soil moisture alone.
+
+# Data
+
+## Provenance
+
+|   | FLUXNET | ERA5-Land | WorldClim 2.1 |
+|------------------|------------------|------------------|------------------|
+| **Variables** | GPP_NT_VUT_REF, TA_F, VPD_F, P_F, NEE_VUT_REF_QC | swvl2 (volumetric soil water, 7–28 cm), t2m | BIO1 (mean annual temperature), BIO12 (annual precipitation) |
+| **Spatial resolution** | tower footprint, roughly 100 m – 1 km | 0.1° (about 9 km), nearest grid cell | 5′ (about 9 km), grid cell containing the tower |
+| **Time resolution** | half-hourly, aggregated to daily | hourly, aggregated to daily means (UTC days) | climate normal, one value per tower |
+| **Period** | depends on the tower (2006–2025) | last 10 years of each tower record (CN-Xi2: 2011–2020, US-Mo3: 2016–2023, others: 2016–2025) | 1970–2000 |
+| **Download date** | 14..11.2026 | 21.11.2026 | 21.11.2026 |
+| **Script and changes** | own function `read_hh()` in `scripts/load_my_towerdata.R` | `scripts/block5/01_era5land.R`; soil moisture variable names changed from `volumetric_soil_water_layer_N` to `volumetric_soil_water_level_N` (see Methods) | `scripts/block5/02_worldclim.R`, unchanged |
+| **Citation** | Pastorello et al. (2020); site citations in @sec-citations | Muñoz-Sabater et al. (2021) | Fick & Hijmans (2017) |
+
+## Reading and preparing the data
+
+```{r}
+#| label: setup
+packages_needed <- c("tidyverse", "here", "segmented", "knitr")
+missing <- packages_needed[!packages_needed %in% installed.packages()]
+if (length(missing) > 0) {
+  install.packages(missing)
+}
+invisible(lapply(packages_needed, library, character.only = TRUE))
+
+select <- dplyr::select   # segmented loads MASS, which masks dplyr::select()
+
+# my function to read the FLUXMET_HH files from the zips
+source(here("scripts", "load_my_towerdata.R"))
+```
+
+The half-hourly flux data are read directly from the FLUXNET zips in `data/raw`.
+
+```{r}
+#| label: read-tower-data
+keep <- c("TIMESTAMP_START", "TIMESTAMP_END", "GPP_NT_VUT_REF",
+          "TA_F", "VPD_F", "P_F", "NEE_VUT_REF_QC")
+
+tower <- read_hh(zip_dir = here("data", "raw"), keep = keep,
+                 out_dir = here("data", "raw", "unzipped"))
+```
+
+```{r}
+#| label: read-era5land
+era_files <- list.files(here("data", "external", "era5land"),
+                        pattern = "_daily\\.csv$", full.names = TRUE)
+
+era <- map(era_files, read_csv, show_col_types = FALSE) %>%
+  bind_rows() %>%
+  mutate(date = as.Date(date))
+```
+
+```{r}
+#| label: read-worldclim
+wc <- read_csv(here("data", "external", "worldclim", "worldclim_bio_my_sites.csv"),
+               show_col_types = FALSE)
+```
+
+Next, I aggregate the half-hourly flux data to daily values and join them with ERA5-Land by tower and date.
+
+```{r}
+#| label: aggregate-daily
+tower$date <- as.Date(tower$time, tz = "UTC")
+
+tower_dd <- tower %>%
+  group_by(site, date) %>%
+  summarise(
+    GPP       = mean(GPP_NT_VUT_REF, na.rm = TRUE) * 1.0368,  # µmol m-2 s-1 -> g C m-2 d-1
+    TA        = mean(TA_F, na.rm = TRUE),                     # °C
+    VPD       = mean(VPD_F, na.rm = TRUE),                    # hPa
+    P         = sum(P_F, na.rm = TRUE),                       # mm d-1
+    n_hh      = sum(!is.na(GPP_NT_VUT_REF)),                  # valid half-hours
+    frac_meas = mean(NEE_VUT_REF_QC == 0, na.rm = TRUE),      # share of measured half-hours
+    .groups = "drop"
+  ) %>%
+  filter(n_hh >= 40) %>%
+  rename(site_id = site)
+```
+
+```{r}
+#| label: join-flux-era5
+flux_era <- left_join(tower_dd, era, by = c("site_id", "date"))
+```
+
+For the analysis I only keep growing-season days with good data quality.
+
+```{r}
+#| label: filter-analysis
+ana <- flux_era %>%
+  filter(TA > 5,              # growing season: otherwise cold, not drought, limits GPP
+         frac_meas >= 0.5,    # at least half of the half-hours measured, not gap-filled
+         !is.na(GPP), !is.na(swvl2))
+```
+
+## Data availability
+
+```{r}
+#| label: fig-availability
+#| fig-cap: "Monthly share of days with valid data for daily GPP (FLUXNET, days with at least 40 of 48 valid half-hours) and soil moisture (ERA5-Land swvl2, 7–28 cm) at the five towers."
+#| fig-height: 5
+vars_avail <- c("GPP", "swvl2")
+
+avail_data <- full_join(tower_dd, era, by = c("site_id", "date")) %>%
+  mutate(month = floor_date(date, "month")) %>%
+  pivot_longer(all_of(vars_avail), names_to = "variable", values_to = "value") %>%
+  group_by(site_id, variable, month) %>%
+  summarise(n_valid = sum(!is.na(value)), .groups = "drop") %>%
+  mutate(frac = n_valid / days_in_month(month))
+
+ggplot(avail_data, aes(x = month, y = site_id, fill = frac)) +
+  geom_tile() +
+  facet_wrap(~ variable, ncol = 1) +
+  scale_fill_viridis_c(labels = scales::percent, limits = c(0, 1),
+                       name = "Days with data") +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom")
+```
+
+ERA5-Land is complete, but only covers the last ten years of each tower record. The flux data have gaps, so the analysis is limited to the period where both datasets overlap (@fig-availability).
+
+## The towers and their climate
+
+```{r}
+#| label: tbl-site-description
+#| tbl-cap: "Climate normals (WorldClim 2.1, 1970–2000), ERA5-Land soil moisture (swvl2, 7–28 cm) and tower GPP during the overlapping period at the five towers, sorted from dry to wet. swvl2 p05 is the 5th percentile, i.e. the dry end of the distribution."
+era_summary <- flux_era %>%
+  filter(!is.na(swvl2)) %>%
+  group_by(site_id) %>%
+  summarise(period     = paste(min(year(date)), max(year(date)), sep = "–"),
+            swvl2_mean = mean(swvl2, na.rm = TRUE),
+            swvl2_p05  = quantile(swvl2, 0.05, na.rm = TRUE),
+            GPP_mean   = mean(GPP, na.rm = TRUE),
+            .groups = "drop")
+
+desc_tab <- wc %>%
+  select(site_id, igbp, BIO1, BIO12) %>%
+  left_join(era_summary, by = "site_id") %>%
+  arrange(BIO12)
+
+knitr::kable(desc_tab, digits = 2,
+             col.names = c("Site", "IGBP", "BIO1 (°C)", "BIO12 (mm)", "Period",
+                           "swvl2 mean (m³ m⁻³)", "swvl2 p05 (m³ m⁻³)",
+                           "GPP mean (g C m⁻² d⁻¹)"))
+```
+
+The five towers span a strong climatic gradient, from the semi-arid grassland CN-Xi2 (329 mm yr⁻¹) to the humid cropland US-Mo3 (1017 mm yr⁻¹) (@tbl-site-description).
+
+```{r}
+#| label: fig-timeseries
+#| fig-cap: "Daily GPP (green, left axis) and ERA5-Land soil moisture swvl2 (blue, right axis) at the five towers. Gaps are days without valid flux data."
+#| fig-height: 9
+data_plot <- flux_era %>%
+  group_by(site_id) %>%
+  complete(date = seq(min(date), max(date), by = "day")) %>%
+  ungroup()
+
+k <- max(data_plot$GPP, na.rm = TRUE) / max(data_plot$swvl2, na.rm = TRUE)
+
+ggplot(data_plot, aes(x = date)) +
+  geom_line(aes(y = GPP), colour = "darkgreen", linewidth = 0.3) +
+  geom_line(aes(y = swvl2 * k), colour = "steelblue", linewidth = 0.5) +
+  facet_wrap(~ site_id, ncol = 1, scales = "free_x") +
+  scale_y_continuous(
+    name = expression("GPP (g C m"^-2*" d"^-1*")"),
+    sec.axis = sec_axis(~ . / k, name = expression("swvl2 (m"^3*" m"^-3*")"))
+  ) +
+  labs(x = NULL) +
+  theme_minimal() +
+  theme(axis.title.y.left  = element_text(colour = "darkgreen"),
+        axis.title.y.right = element_text(colour = "steelblue"))
+```
+
+The time series already show the seasonal pattern that turns out to be important later: at most towers, soil moisture is lowest in summer, exactly when GPP is highest (@fig-timeseries).
+
+# Methods
+
+**Downloads.** I downloaded ERA5-Land with `01_era5land.R` from the Copernicus Climate Data Store (dataset `reanalysis-era5-land-timeseries`) for the last ten years of each tower record (`years_back = 10`). The first run finished without errors, but only returned air and soil temperature: the CDS silently ignored the soil moisture variable names in the script (`volumetric_soil_water_layer_N`). Using "Show API request code" on the CDS download page, I found that the time-series product calls them `volumetric_soil_water_level_N`. After changing the names, I downloaded the data again on 21.11.2026. WorldClim 2.1 was downloaded with `02_worldclim.R` without any changes.
+
+**Extraction.** Tower coordinates (WGS84, decimal degrees) come from `tower_sets_block4.csv`. ERA5-Land is a point service, so the CDS returns the time series of the nearest 0.1° grid cell. WorldClim values were taken from the 5′ raster cell containing each tower.
+
+**Processing.** FLUXNET values of −9999 were treated as missing. I aggregated the half-hourly data to daily values: GPP, air temperature and VPD as daily means, precipitation as daily sum. GPP was converted from µmol CO₂ m⁻² s⁻¹ to g C m⁻² d⁻¹ with the factor 1.0368 (10⁻⁶ mol µmol⁻¹ × 12.011 g C mol⁻¹ × 86 400 s d⁻¹). Only days with at least 40 of 48 valid half-hours were kept. The script averages ERA5-Land to UTC days, while FLUXNET timestamps are in local standard time. For soil moisture, which changes slowly, this shift of a few hours does not matter much. Flux and ERA5-Land data were joined by `site_id` and `date`. For the analysis, I used only days with a mean air temperature above 5 °C (growing season) and at least 50 % measured, not gap-filled NEE half-hours (`NEE_VUT_REF_QC == 0`). Missing values were never filled in by hand or copied between towers.
+
+**Analysis.** For each tower separately, I fitted a breakpoint (segmented) linear regression of daily GPP on `swvl2` with the R package `segmented`, starting from the median of `swvl2`. The estimated breakpoint is my soil moisture threshold, and I report the slopes below and above it. As a simpler additional measure, I give the Spearman rank correlation (ρ) between GPP and `swvl2`. To check how much of the result is driven by seasonality, I repeated the analysis using only the three months with the highest mean GPP at each tower. n is given as the number of days and years per tower. Since consecutive days at one tower are not independent of each other, I do not use p-values to judge significance.
+
+```{r}
+#| label: fit-function
+fit_threshold <- function(d) {
+  lin <- lm(GPP ~ swvl2, data = d)
+  seg <- tryCatch(segmented(lin, seg.Z = ~ swvl2, psi = median(d$swvl2)),
+                  error = function(e) NULL)
+
+  tibble(
+    n_days      = nrow(d),
+    n_years     = n_distinct(year(d$date)),
+    rho         = cor(d$GPP, d$swvl2, method = "spearman"),
+    threshold   = if (!is.null(seg)) seg$psi[1, "Est."] else NA,
+    slope_below = if (!is.null(seg)) slope(seg)$swvl2[1, "Est."] else NA,
+    slope_above = if (!is.null(seg)) slope(seg)$swvl2[2, "Est."] else NA
+  )
+}
+```
+
+# Results
+
+## Soil moisture thresholds over the whole growing season
+
+```{r}
+#| label: tbl-results
+#| tbl-cap: "Breakpoint regression of daily GPP on swvl2 per tower (growing-season days). Threshold in m³ m⁻³; slopes in g C m⁻² d⁻¹ per m³ m⁻³ (divide by 10 to get the change per 0.1 m³ m⁻³). ρ = Spearman correlation."
+results <- ana %>%
+  group_by(site_id) %>%
+  group_modify(~ fit_threshold(.x)) %>%
+  ungroup()
+
+knitr::kable(results, digits = 3,
+             col.names = c("Site", "n days", "n years", "ρ",
+                           "Threshold", "Slope below", "Slope above"))
+```
+
+```{r}
+#| label: fig-main
+#| fig-cap: "Daily GPP versus ERA5-Land soil moisture (swvl2, 7–28 cm) on growing-season days (TA > 5 °C, at least 50 % measured NEE) at the five towers. Red: loess smoother with 95 % confidence band. Dashed line: breakpoint from the segmented regression."
+#| fig-height: 6
+ggplot(ana, aes(x = swvl2, y = GPP)) +
+  geom_point(alpha = 0.15, size = 0.7) +
+  geom_smooth(method = "loess", colour = "firebrick", se = TRUE) +
+  geom_vline(data = results, aes(xintercept = threshold),
+             linetype = "dashed", colour = "grey30") +
+  facet_wrap(~ site_id, scales = "free_x") +
+  labs(x = expression("ERA5-Land soil moisture, 7–28 cm (m"^3*" m"^-3*")"),
+       y = expression("GPP (g C m"^-2*" d"^-1*")")) +
+  theme_bw()
+```
+
+The clearest support for the hypothesis comes from the driest tower, CN-Xi2 (@tbl-results, @fig-main). Below a threshold of 0.18 m³ m⁻³, GPP rises steeply with soil moisture (+5.6 g C m⁻² d⁻¹ per 0.1 m³ m⁻³). Above it, more water hardly makes a difference (+0.6 per 0.1 m³ m⁻³). This is exactly the "steep, then flat" shape I expected.
+
+At the Mediterranean forest IT-SR2, GPP also increases strongly below the threshold (0.24 m³ m⁻³; +5.2 per 0.1 m³ m⁻³), but then decreases again above it (−3.8 per 0.1 m³ m⁻³), so the curve looks more like a hump than a kink. AU-Whr points in the expected direction (+1.5 below and −0.7 above 0.20 m³ m⁻³), but the effect is weak and the overall correlation is close to zero (ρ = −0.06).
+
+At the other two towers, the hypothesis is not supported. At the wetland CZ-wet, GPP barely changes below the threshold (0.28 m³ m⁻³; +0.5 per 0.1 m³ m⁻³) and even drops above it (−4.2). At the cropland US-Mo3, GPP decreases over the whole soil moisture range (−1.8 below, −4.5 above). The estimated threshold there (0.39 m³ m⁻³) sits at the wet end of the data and is most likely just an artefact of the model, which always has to place a breakpoint somewhere.
+
+Each estimate is based on 759–1368 growing-season days (8–10 years) per tower.
+
+## Robustness check: peak growing season only
+
+```{r}
+#| label: tbl-compare
+#| tbl-cap: "Breakpoint regression results using all growing-season days compared with only the three months with the highest mean GPP per tower."
+peak_months <- ana %>%
+  mutate(month = month(date)) %>%
+  group_by(site_id, month) %>%
+  summarise(GPP_month = mean(GPP, na.rm = TRUE), .groups = "drop") %>%
+  group_by(site_id) %>%
+  slice_max(GPP_month, n = 3) %>%
+  ungroup()
+
+ana_peak <- ana %>%
+  mutate(month = month(date)) %>%
+  semi_join(peak_months, by = c("site_id", "month"))
+
+results_peak <- ana_peak %>%
+  group_by(site_id) %>%
+  group_modify(~ fit_threshold(.x)) %>%
+  ungroup()
+
+compare <- bind_rows(
+  results      %>% mutate(subset = "all growing-season days"),
+  results_peak %>% mutate(subset = "peak 3 months")
+) %>%
+  select(site_id, subset, n_days, rho, threshold, slope_below, slope_above) %>%
+  arrange(site_id, subset)
+
+knitr::kable(compare, digits = 3,
+             col.names = c("Site", "Subset", "n days", "ρ",
+                           "Threshold", "Slope below", "Slope above"))
+```
+
+```{r}
+#| label: fig-peak
+#| fig-cap: "As @fig-main, but only for the three months with the highest mean GPP at each tower."
+#| fig-height: 6
+ggplot(ana_peak, aes(x = swvl2, y = GPP)) +
+  geom_point(alpha = 0.2, size = 0.8) +
+  geom_smooth(method = "loess", colour = "firebrick") +
+  geom_vline(data = results_peak, aes(xintercept = threshold),
+             linetype = "dashed", colour = "grey30") +
+  facet_wrap(~ site_id, scales = "free_x") +
+  labs(x = expression("ERA5-Land soil moisture, 7–28 cm (m"^3*" m"^-3*")"),
+       y = expression("GPP (g C m"^-2*" d"^-1*")")) +
+  theme_bw()
+```
+
+When I only look at the three months with the highest GPP, no clear threshold is left at any of the towers (@tbl-compare, @fig-peak). Within the peak season, soil moisture varies much less, and there are only about a quarter of the days left, so a breakpoint is much harder to detect. This suggests that a good part of the patterns over the whole growing season, especially the negative slopes, comes from comparing different seasons rather than from soil moisture itself.
+
+# Discussion
+
+The hypothesis is clearly supported at the driest tower, CN-Xi2, partly at the Mediterranean forest IT-SR2, and only weakly at AU-Whr. At the wetland CZ-wet and the cropland US-Mo3, there is no sign of a soil moisture threshold. This fits the climatic gradient from WorldClim: the threshold shows up where water can actually become scarce, while at the wetland water is practically never limiting and at the cropland GPP is mainly driven by sowing, crop growth and harvest. Scale is an important caveat here. ERA5-Land and WorldClim both have a resolution of about 9 km, whereas the flux footprint is only around 100 m to 1 km. A single ERA5-Land grid cell can therefore contain very different soils and land cover than the area the tower actually "sees", which matters most for small or patchy ecosystems like the wetland. The first main limitation is seasonality: in summer, high GPP and low soil moisture occur together because the plants themselves use up the water, and light and temperature affect both at the same time. The robustness check shows that this confounding can explain much of the pattern, and in addition, consecutive days are not independent, so the large n per tower overstates how much information the data really contain. The second limitation is that `swvl2` is a modelled value for 7–28 cm only, which may miss the water that deep-rooted trees such as eucalyptus at AU-Whr can access. As next steps, I would use the soil water content measured at the towers (e.g. `SWC_F_MDS_1`, where available), include VPD as a second driver, and remove the seasonal cycle by working with anomalies instead of raw daily values.
+
+# Data and citations {#sec-citations}
+
+**FLUXNET site citations**
+
+Beringer, J., Arndt, S., Loew, M., Hinko-Najera, N. (2026): Whroo FLUXNET Release 2026_r1. Version 2026_r1. Terrestrial Ecosystem Research Network (TERN). (Dataset). \[AU-Whr\]
+
+Chen, S. (2026). Fluxnet Archive Product from Xilinhot grassland site (X03), 2011–2020, FLUXNET, https://hdl.handle.net/11676/Q9e9OH0qQmaJV4OiVUDW3BAV \[CN-Xi2\]
+
+Dusek, J., Kivalov, S., Pavelka, M., Šigut, L., Jocher, G., Czerný, R., Staník, K., Stellner, S., Trusina, J. (2026). Fluxnet Archive Product from Trebon, 2006–2025, FLUXNET, https://hdl.handle.net/11676/ezclJdsSs31JZaOdM4gbLbIn \[CZ-wet\]
+
+Arriga, N., Goded, I., Grüning, C., Dell'Acqua, A., Matteucci, M. (2026). Fluxnet Archive Product from San Rossore 2, 2013–2025, FLUXNET, https://hdl.handle.net/11676/xmKHyUZQfcLwolbWA7E2YEYg \[IT-SR2\]
+
+Adam Schreiner-McGraw (2026), AmeriFlux FLUXNET-1F US-Mo3 LTAR CMRB Field 3 (CMRB BAU), Ver. v1.3_r1, AmeriFlux AMP, (Dataset). https://doi.org/10.17190/AMF/2229384 \[US-Mo3\]
+
+**Datasets and methods**
+
+Pastorello, G. et al. (2020). The FLUXNET2015 dataset and the ONEFlux processing pipeline for eddy covariance data. *Scientific Data*, 7, 225. https://doi.org/10.1038/s41597-020-0534-3
+
+Muñoz-Sabater, J. et al. (2021). ERA5-Land: a state-of-the-art global reanalysis dataset for land applications. *Earth System Science Data*, 13, 4349–4383. https://doi.org/10.5194/essd-13-4349-2021. Contains modified Copernicus Climate Change Service information 2026.
+
+Fick, S. E. & Hijmans, R. J. (2017). WorldClim 2: new 1-km spatial resolution climate surfaces for global land areas. *International Journal of Climatology*, 37, 4302–4315. https://doi.org/10.1002/joc.5086
+
+**FLUXNET acknowledgement**
+
+\[ACKNOWLEDGEMENT FROM flux4student/README.md\]

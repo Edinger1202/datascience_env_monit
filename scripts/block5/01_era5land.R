@@ -27,10 +27,10 @@ library(ecmwfr)
 
 # ---- Settings -----------------------------------------------------------------
 variables <- c("2m_temperature",
-               "volumetric_soil_water_layer_1",   #   0–7 cm   (m³ m⁻³)
-               "volumetric_soil_water_layer_2",   #   7–28 cm
-               "volumetric_soil_water_layer_3",   #  28–100 cm
-               "soil_temperature_level_1")        #   0–7 cm   (K)
+               "volumetric_soil_water_level_1",   #   0–7 cm   (m³ m⁻³)
+               "volumetric_soil_water_level_2",   #   7–28 cm
+               "volumetric_soil_water_level_3",   #  28–100 cm
+               "soil_temperature_level_1")        #   0–7 cm   (K)     
 # More: "total_precipitation", "surface_solar_radiation_downwards", "snow_depth", ...
 # Careful: precipitation and radiation are ACCUMULATED variables in ERA5-Land.
 # Look at a few hours first before you sum them to days.
